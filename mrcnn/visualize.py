@@ -12,6 +12,7 @@ import sys
 import random
 import itertools
 import colorsys
+import math
 
 import numpy as np
 from skimage.measure import find_contours
@@ -121,48 +122,63 @@ def display_instances(image, boxes, masks, class_ids, class_names,
     ax.set_title(title)
 
     masked_image = image.astype(np.uint32).copy()
+    img_cx, img_cy = width / 2, height / 2
+    min_dist = math.sqrt(img_cx ** 2 + img_cy ** 2)
+    main_y1, main_x1, main_y2, main_x2 = 0, 0, 0, 0
     for i in range(N):
-        color = colors[i]
-
-        # Bounding box
-        if not np.any(boxes[i]):
-            # Skip this instance. Has no bbox. Likely lost in image cropping.
-            continue
         y1, x1, y2, x2 = boxes[i]
-        if show_bbox:
-            p = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2,
+        cx, cy = x1 + (x2 - x1) / 2, y1 + (y2 - y1) / 2
+        dist = math.sqrt((img_cx - cx) ** 2 + (img_cy - cy) ** 2)
+        if dist < min_dist:
+            min_dist = dist
+            main_y1, main_x1, main_y2, main_x2 = boxes[i]
+
+    box = patches.Rectangle((main_x1, main_y1), main_x2 - main_x1, main_y2 - main_y1, linewidth=2,
                                 alpha=0.7, linestyle="dashed",
-                                edgecolor=color, facecolor='none')
-            ax.add_patch(p)
+                                edgecolor='red', facecolor='none')
+    ax.add_patch(box)
+    # for i in range(N):
+    #     color = colors[i]
+    #
+    #     # Bounding box
+    #     if not np.any(boxes[i]):
+    #         # Skip this instance. Has no bbox. Likely lost in image cropping.
+    #         continue
+    #     y1, x1, y2, x2 = boxes[i]
+    #     if show_bbox:
+    #         p = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2,
+    #                             alpha=0.7, linestyle="dashed",
+    #                             edgecolor=color, facecolor='none')
+    #         ax.add_patch(p)
 
-        # Label
-        if not captions:
-            class_id = class_ids[i]
-            score = scores[i] if scores is not None else None
-            label = class_names[class_id]
-            x = random.randint(x1, (x1 + x2) // 2)
-            caption = "{} {:.3f}".format(label, score) if score else label
-        else:
-            caption = captions[i]
-        ax.text(x1, y1 + 8, caption,
-                color='w', size=11, backgroundcolor="none")
-
-        # Mask
-        mask = masks[:, :, i]
-        if show_mask:
-            masked_image = apply_mask(masked_image, mask, color)
-
-        # Mask Polygon
-        # Pad to ensure proper polygons for masks that touch image edges.
-        padded_mask = np.zeros(
-            (mask.shape[0] + 2, mask.shape[1] + 2), dtype=np.uint8)
-        padded_mask[1:-1, 1:-1] = mask
-        contours = find_contours(padded_mask, 0.5)
-        for verts in contours:
-            # Subtract the padding and flip (y, x) to (x, y)
-            verts = np.fliplr(verts) - 1
-            p = Polygon(verts, facecolor="none", edgecolor=color)
-            ax.add_patch(p)
+    #     # Label
+    #     if not captions:
+    #         class_id = class_ids[i]
+    #         score = scores[i] if scores is not None else None
+    #         label = class_names[class_id]
+    #         x = random.randint(x1, (x1 + x2) // 2)
+    #         caption = "{} {:.3f}".format(label, score) if score else label
+    #     else:
+    #         caption = captions[i]
+    #     ax.text(x1, y1 + 8, caption,
+    #             color='w', size=11, backgroundcolor="none")
+    #
+    #     # Mask
+    #     mask = masks[:, :, i]
+    #     if show_mask:
+    #         masked_image = apply_mask(masked_image, mask, color)
+    #
+    #     # Mask Polygon
+    #     # Pad to ensure proper polygons for masks that touch image edges.
+    #     padded_mask = np.zeros(
+    #         (mask.shape[0] + 2, mask.shape[1] + 2), dtype=np.uint8)
+    #     padded_mask[1:-1, 1:-1] = mask
+    #     contours = find_contours(padded_mask, 0.5)
+    #     for verts in contours:
+    #         # Subtract the padding and flip (y, x) to (x, y)
+    #         verts = np.fliplr(verts) - 1
+    #         p = Polygon(verts, facecolor="none", edgecolor=color)
+    #         ax.add_patch(p)
     ax.imshow(masked_image.astype(np.uint8))
     if auto_show:
         plt.show()
